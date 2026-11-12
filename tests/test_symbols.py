@@ -40,6 +40,17 @@ class TestNormalizeSymbol(unittest.TestCase):
         self.assertEqual(normalize_symbol("BTCUSD"), "BTC-USD")
         self.assertEqual(normalize_symbol("ETHUSD"), "ETH-USD")
 
+    def test_bare_b3_code_gets_sa_suffix(self):
+        for raw, yahoo in (("PETR4", "PETR4.SA"), ("vale3", "VALE3.SA"), ("BOVA11", "BOVA11.SA"),
+                           ("AAPL34", "AAPL34.SA"), ("PETR4F", "PETR4F.SA"), ("B3SA3", "B3SA3.SA")):
+            self.assertEqual(normalize_symbol(raw), yahoo)
+
+    def test_b3_rule_leaves_other_symbols_alone(self):
+        # Already suffixed, index CFD aliases, and codes that are not B3-shaped.
+        for sym, yahoo in (("PETR4.SA", "PETR4.SA"), ("GER40", "^GDAXI"), ("US500", "^GSPC"),
+                           ("ESTX50", "^STOXX50E"), ("AUS200", "AUS200"), ("ABC1", "ABC1"), ("ABCDE1", "ABCDE1")):
+            self.assertEqual(normalize_symbol(sym), yahoo)
+
     def test_six_letter_non_currency_left_alone(self):
         # GOOGLE-style 6-letter tickers that aren't two currency codes
         # must not be mangled into a fake forex pair.

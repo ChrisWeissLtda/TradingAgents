@@ -12,6 +12,7 @@ differ from the broker / TradingView / MT5 style symbols users often type:
     SPX500, US500     ^GSPC             index CFDs map to Yahoo index symbols
     09992.HK, 700.HK  9992.HK, 0700.HK  HK codes are zero-padded to 4 digits
     600519.SH         600519.SS         Yahoo spells Shanghai ``.SS``
+    PETR4, BOVA11     PETR4.SA          B3 codes take Yahoo's ``.SA`` suffix
 
 Passing the raw broker symbol to Yahoo returns an empty result, which the
 agents previously received as free text and could hallucinate a price
@@ -64,12 +65,17 @@ _ALIASES = {
     "US30": "^DJI", "DJI30": "^DJI", "WS30": "^DJI",
     "GER40": "^GDAXI", "GER30": "^GDAXI", "DE40": "^GDAXI",
     "UK100": "^FTSE", "JP225": "^N225", "JPN225": "^N225",
-    "FRA40": "^FCHI", "EU50": "^STOXX50E", "HK50": "^HSI",
+    "FRA40": "^FCHI", "EU50": "^STOXX50E", "ESTX50": "^STOXX50E", "HK50": "^HSI",
 }
 
 # HKEX codes as Yahoo spells them: the number zero-padded to 4 digits (#957).
 _HK_CODE = re.compile(r"^(\d{1,5})\.HK$")
 _SHANGHAI_SH = re.compile(r"^(\d{6})\.SH$")
+# A bare B3 (Brazil) trading code: four letters, the share class or unit number,
+# and an optional F for the fractional market (PETR4, BOVA11, AAPL34, PETR4F).
+# No US ticker ends in a digit, so the shape is B3's alone. B3SA3, the exchange's
+# own share, is the one code whose root holds a digit.
+_B3_CODE = re.compile(r"^(?:[A-Z]{4}|B3SA)\d{1,2}F?$")
 
 
 # Crypto quote currencies that all map to Yahoo's USD pair. Yahoo lists only
@@ -111,7 +117,9 @@ def normalize_symbol(raw: str) -> str:
       4. HK rule: a numeric ``.HK`` code -> Yahoo's 4-digit padding
          (``09992.HK`` -> ``9992.HK``, ``700.HK`` -> ``0700.HK``).
       5. Shanghai rule: ``600519.SH`` -> ``600519.SS``.
-      6. Otherwise the upper-cased symbol is returned unchanged (plain
+      6. B3 rule: a bare Brazilian code -> Yahoo's ``.SA`` suffix
+         (``PETR4`` -> ``PETR4.SA``, ``BOVA11`` -> ``BOVA11.SA``).
+      7. Otherwise the upper-cased symbol is returned unchanged (plain
          equities, ETFs, Yahoo-native symbols like ``GC=F`` or ``^GSPC``).
 
     A trailing ``+`` (broker CFD marker, e.g. ``XAUUSD+``) is stripped before
@@ -136,6 +144,8 @@ def normalize_symbol(raw: str) -> str:
         canonical = f"{int(hk.group(1)):04d}.HK"
     elif sh := _SHANGHAI_SH.match(s):
         canonical = f"{sh.group(1)}.SS"
+    elif _B3_CODE.match(s):
+        canonical = f"{s}.SA"
     else:
         canonical = s
 
