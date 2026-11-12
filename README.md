@@ -415,6 +415,7 @@ Please reference our work if you find *TradingAgents* provides you with some hel
       year={2025},
       eprint={2412.20138},
       archivePrefix={arXiv},
+      
       primaryClass={q-fin.TR},
       url={https://arxiv.org/abs/2412.20138}, 
 }
