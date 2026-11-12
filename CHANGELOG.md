@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Changes that need action when upgrading are listed under "Upgrading from" in their release.
 
+## [Unreleased]
+
+### Added
+
+- A bare B3 trading code such as `PETR4` or `BOVA11` resolves to its Yahoo symbol (`PETR4.SA`).
+- Brazilian macro series from the Banco Central do Brasil, with no key: `selic_target`, `ipca`, `ipca_12m` and `usd_brl`. A monthly figure is served only once it was published, and other indicators still go to FRED.
+
 ## [0.7.1] — 2026-10-27
 
 Decisions are scored only on final closes and settle across long market holidays, a model's unpadded date no longer reads filings made after the run date, and fixes to portfolios, prices, SEC statements, reports, Azure and Claude settings.
