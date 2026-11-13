@@ -1,5 +1,6 @@
 """Running one analysis from the CLI: build the graph, stream it into the live view, save the report."""
 
+import json
 import os
 import sys
 import time
@@ -384,9 +385,22 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
             "decision text below and judge it yourself.[/yellow]\n"
         )
     console.print(f"[dim]{analyst_wall_time_tracker.format_summary()}[/dim]")
+    tokens = stats_handler.get_stats()
+    _print_token_usage(tokens)
 
     _offer_reports(final_state, graph, selections["ticker"],
-                   save=flags.get("save"), show=flags.get("show"), html=flags.get("html"))
+                   save=flags.get("save"), show=flags.get("show"), html=flags.get("html"), tokens=tokens)
+
+
+def _print_token_usage(stats) -> None:
+    """Tokens by graph node, largest first, so the expensive agents are visible."""
+    rows = sorted(stats.get("by_node", {}).items(), key=lambda kv: -(kv[1]["input"] + kv[1]["output"]))
+    if not rows:
+        return
+    console.print("[dim]Tokens by agent (input / output / cache read / cache write):[/dim]")
+    for node, r in rows:
+        console.print(f"[dim]  {node:<26} {r['calls']:>3} calls  {r['input']:>9,} / {r['output']:>7,} / {r['cache_read']:>9,} / {r['cache_write']:>8,}[/dim]")
+    console.print(f"[dim]  {'total':<26} {stats['llm_calls']:>3} calls  {stats['tokens_in']:>9,} / {stats['tokens_out']:>7,}[/dim]")
 
 
 def _yes(question: str) -> bool:
@@ -423,7 +437,7 @@ def _open_page(page: Path) -> None:
         console.print(f"  [dim]Could not open a browser; the page is at:[/dim] {page}")
 
 
-def _offer_reports(final_state, graph, ticker, save=None, show=None, html=None):
+def _offer_reports(final_state, graph, ticker, save=None, show=None, html=None, tokens=None):
     """Save the report tree and show it; ``save``/``show``/``html`` answer the questions when given.
 
     A saved report includes the HTML page unless ``html`` is False. Someone
@@ -447,6 +461,8 @@ def _offer_reports(final_state, graph, ticker, save=None, show=None, html=None):
         saved = False
         try:
             report_file = graph.save_reports(final_state, ticker, save_path, html=html)
+            if tokens:
+                (save_path / "tokens.json").write_text(json.dumps(tokens, indent=2), encoding="utf-8")
             saved = True
             console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
             console.print(f"  [dim]Complete report:[/dim] {report_file.name}")

@@ -135,6 +135,8 @@ def build_default_config() -> dict:
         "knowledge_path": None,
         # Comma-separated playbook modes to switch on for this run, e.g. "credito".
         "knowledge_modes": "",
+        # Anthropic only: cache the analysts' tool-loop prompts (cheaper repeated rounds).
+        "anthropic_prompt_cache": True,
         # Debate and discussion settings
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,

@@ -23,8 +23,22 @@ def take_turn(prompt, llm, tools, messages):
         prompt = prompt.partial(tool_names="none; your tool rounds are spent")
         result = (prompt | llm).invoke(_as_text(messages))
         return result, result.content
-    result = (prompt | llm.bind_tools(tools)).invoke(messages)
+    result = (prompt | _cache_prefix(llm.bind_tools(tools), llm)).invoke(messages)
     return result, "" if result.tool_calls else result.content
+
+
+def _cache_prefix(runnable, llm):
+    """On the direct Anthropic API, cache the request so the next tool round reads it.
+
+    Each round re-sends the whole conversation, so from the second round on the
+    prefix is billed at the cache-read rate instead of in full. Other providers
+    get the runnable unchanged.
+    """
+    from tradingagents.dataflows.config import get_config
+
+    if getattr(llm, "_llm_type", None) != "anthropic-chat" or not get_config().get("anthropic_prompt_cache", True):
+        return runnable
+    return runnable.bind(cache_control={"type": "ephemeral"})
 
 
 def _as_text(messages):
