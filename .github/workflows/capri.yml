@@ -18,6 +18,11 @@ on:
         description: "Analistas, separados por vírgula"
         required: false
         default: "market,sentiment,news,fundamentals"
+      credito:
+        description: "Modo crédito (/credito): análise de crédito, risco sacado e recebíveis"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -51,6 +56,7 @@ jobs:
       IN_TICKER: ${{ inputs.ticker }}
       IN_DATE: ${{ inputs.date }}
       IN_ANALYSTS: ${{ inputs.analysts }}
+      TRADINGAGENTS_KNOWLEDGE_MODES: ${{ inputs.credito && 'credito' || '' }}
     steps:
       - uses: actions/checkout@v7
 

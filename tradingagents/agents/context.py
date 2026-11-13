@@ -30,7 +30,9 @@ def get_knowledge_instruction(role: str) -> str:
 
     ``knowledge_path`` points at a markdown file whose "## todos" section reaches
     every agent and whose "## analistas", "## pesquisa" and "## decisao" sections
-    reach the analysts, the research team and the decision agents. It carries
+    reach the analysts, the research team and the decision agents. A section
+    named "<mode>: <role>" (e.g. "credito: analistas") is added only while that
+    mode is listed in ``knowledge_modes``. It carries
     methods and standing rules, never market data, and says so to the model.
     """
     from tradingagents.dataflows.config import get_config
@@ -42,7 +44,11 @@ def get_knowledge_instruction(role: str) -> str:
     except OSError as exc:
         logger.warning("Playbook %s not readable: %s; running without it.", path, exc)
         return ""
-    text = "\n\n".join(t for t in (sections.get("todos", ""), sections.get(role, "")) if t)
+    modes = get_config().get("knowledge_modes") or ""
+    if isinstance(modes, str):
+        modes = [m for m in modes.replace(" ", "").lower().split(",") if m]
+    names = ["todos", role] + [f"{m}: {r}" for m in modes for r in ("todos", role)]
+    text = "\n\n".join(sections[n] for n in names if sections.get(n))
     if not text:
         return ""
     return (

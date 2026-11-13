@@ -18,6 +18,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
     "TRADINGAGENTS_KNOWLEDGE_PATH":       "knowledge_path",
+    "TRADINGAGENTS_KNOWLEDGE_MODES":      "knowledge_modes",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_MAX_TOOL_ROUNDS":      "max_tool_rounds",
@@ -132,6 +133,8 @@ def build_default_config() -> dict:
         "output_language": "English",
         # Optional markdown playbook (sections: todos, analistas, pesquisa, decisao) added to the agents' prompts.
         "knowledge_path": None,
+        # Comma-separated playbook modes to switch on for this run, e.g. "credito".
+        "knowledge_modes": "",
         # Debate and discussion settings
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,
