@@ -1,7 +1,8 @@
 name: Capri
 
 # Roda uma análise da Capri sob demanda (pelo GitHub ou pelo chat com o Claude)
-# e guarda o relatório e a memória de decisões no branch `capri-relatorios`.
+# e guarda o relatório e a memória de decisões no repositório privado
+# <dono>/capri-relatorios, para que fiquem fora deste repositório público.
 
 on:
   workflow_dispatch:
@@ -19,7 +20,7 @@ on:
         default: "market,sentiment,news,fundamentals"
 
 permissions:
-  contents: write
+  contents: read
 
 # Uma análise por vez, para a memória de decisões não ser escrita por duas ao mesmo tempo.
 concurrency:
@@ -32,6 +33,8 @@ jobs:
     timeout-minutes: 60
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      REPORTS_TOKEN: ${{ secrets.CAPRI_REPORTS_TOKEN }}
+      REPORTS_REPO: ${{ github.repository_owner }}/capri-relatorios
       TRADINGAGENTS_LLM_PROVIDER: anthropic
       TRADINGAGENTS_QUICK_THINK_LLM: claude-haiku-4-5
       TRADINGAGENTS_DEEP_THINK_LLM: claude-sonnet-5
@@ -56,24 +59,24 @@ jobs:
       - name: Instalar
         run: pip install -e .
 
-      - name: Conferir a chave
+      - name: Conferir os segredos
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::Falta o segredo ANTHROPIC_API_KEY em Settings > Secrets and variables > Actions."
-            exit 1
-          fi
+          missing=0
+          for name in ANTHROPIC_API_KEY REPORTS_TOKEN; do
+            if [ -z "${!name}" ]; then missing=1; fi
+          done
+          [ -n "$ANTHROPIC_API_KEY" ] || echo "::error::Falta o segredo ANTHROPIC_API_KEY em Settings > Secrets and variables > Actions."
+          [ -n "$REPORTS_TOKEN" ] || echo "::error::Falta o segredo CAPRI_REPORTS_TOKEN (token com acesso ao repositório $REPORTS_REPO)."
+          exit $missing
 
-      - name: Abrir o branch de relatórios
+      - name: Abrir o repositório de relatórios
         run: |
           dest="$GITHUB_WORKSPACE/../capri-relatorios"
-          if git ls-remote --exit-code --heads origin capri-relatorios >/dev/null; then
-            git clone --depth 1 --branch capri-relatorios \
-              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$dest"
-          else
-            git init -b capri-relatorios "$dest"
-            git -C "$dest" remote add origin \
-              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          fi
+          url="https://x-access-token:${REPORTS_TOKEN}@github.com/${REPORTS_REPO}.git"
+          git clone --depth 1 "$url" "$dest" || {
+            echo "::error::Não consegui abrir $REPORTS_REPO. Confira se ele existe e se o token tem acesso a ele."
+            exit 1
+          }
           mkdir -p "$dest/memoria" "$dest/relatorios"
 
       - name: Rodar a análise
@@ -104,5 +107,5 @@ jobs:
           git config user.email "capri-bot@users.noreply.github.com"
           git add -A
           git commit -m "Capri: $IN_TICKER em $DATE_ARG (execução ${{ github.run_id }})"
-          git push origin capri-relatorios
+          git push origin HEAD
           echo "Relatório salvo em relatorios/$name" >> "$GITHUB_STEP_SUMMARY"
