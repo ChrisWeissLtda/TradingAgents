@@ -232,3 +232,12 @@ def test_ticker_news_asks_for_only_as_many_articles_as_configured(monkeypatch):
     alpha_vantage_news.get_news("AAPL", "2026-03-10", "2026-03-14")
 
     assert seen["limit"] == "8"
+
+
+def test_b3_symbols_use_the_alpha_vantage_suffix():
+    from tradingagents.dataflows.vendors.alpha_vantage.common import _av_symbol
+
+    assert _av_symbol("PETR4.SA") == "PETR4.SAO"
+    assert _av_symbol("IBM") == "IBM"
+    assert _av_symbol("PETR4.SA,VALE3.SA") == "PETR4.SAO,VALE3.SAO"
+    assert _av_symbol("PETR4.SAO") == "PETR4.SAO"

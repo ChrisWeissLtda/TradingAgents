@@ -67,6 +67,11 @@ class AlphaVantageRateLimitError(VendorUnavailableError):
     pass
 
 
+def _av_symbol(symbol: str) -> str:
+    """Alpha Vantage spells B3 listings with .SAO where Yahoo uses .SA (PETR4.SA -> PETR4.SAO)."""
+    return ",".join(s[:-3] + ".SAO" if s.upper().endswith(".SA") else s for s in symbol.split(","))
+
+
 def _make_api_request(function_name: str, params: dict) -> dict | str:
     """Helper function to make API requests and handle responses.
 
@@ -76,6 +81,9 @@ def _make_api_request(function_name: str, params: dict) -> dict | str:
     # Create a copy of params to avoid modifying the original
     api_key = get_api_key()
     api_params = params.copy()
+    for key in ("symbol", "tickers"):
+        if isinstance(api_params.get(key), str):
+            api_params[key] = _av_symbol(api_params[key])
     api_params.update({
         "function": function_name,
         "apikey": api_key,

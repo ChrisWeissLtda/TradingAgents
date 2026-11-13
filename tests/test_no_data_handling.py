@@ -78,7 +78,11 @@ class TestRouteToVendorSentinel(unittest.TestCase):
             raise NoMarketDataError(symbol, symbol, "no rows")
 
         def raises_unavailable(symbol, *a, **k):
-            raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set.")
+            # The real missing-key error, now that Alpha Vantage is in the default chain.
+            from tradingagents.dataflows.vendors.alpha_vantage.common import (
+                AlphaVantageNotConfiguredError,
+            )
+            raise AlphaVantageNotConfiguredError("ALPHA_VANTAGE_API_KEY environment variable is not set.")
 
         patched = {"yfinance": raises_no_data, "alpha_vantage": raises_unavailable}
         with mock.patch.dict(

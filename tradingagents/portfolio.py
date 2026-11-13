@@ -36,6 +36,7 @@ class PortfolioContext(BaseModel):
     cash: float | None = Field(default=None, description="Free cash available")
     currency: str | None = Field(default=None, description="Currency label for cash and prices")
     positions: list[Position] = Field(default_factory=list)
+    notes: str | None = Field(default=None, description="Free-text constraints from the caller, e.g. targets or a no-selling rule")
 
     def positions_in(self, ticker: str) -> list[Position]:
         """The holdings of the instrument the run prices for ``ticker``, under any
@@ -65,6 +66,8 @@ class PortfolioContext(BaseModel):
         others = [p for p in self.positions if all(p is not h for h in held)]
         if others:
             lines.append("- Other positions: " + ", ".join(f"{p.ticker.upper()} {p.quantity:,.4g}" for p in others))
+        if self.notes and self.notes.strip():
+            lines.append("- Caller's notes on this portfolio: " + self.notes.strip())
         return "Portfolio at the analysis date:\n" + "\n".join(lines)
 
     def fingerprint(self) -> str:
