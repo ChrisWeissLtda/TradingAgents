@@ -19,6 +19,9 @@ Checar a conversão de lucro em caixa.
 
 ## Decisao
 Compras novas saem só do aporte do mês.
+
+## Credito: analistas
+Somar o risco sacado à dívida.
 """
 
 
@@ -30,9 +33,10 @@ def playbook(tmp_path):
     set_config(copy.deepcopy(default_config.DEFAULT_CONFIG))
 
 
-def _use(path):
+def _use(path, modes=""):
     config = copy.deepcopy(default_config.DEFAULT_CONFIG)
     config["knowledge_path"] = str(path) if path else None
+    config["knowledge_modes"] = modes
     set_config(config)
 
 
@@ -82,3 +86,12 @@ def test_the_playbook_reaches_the_portfolio_manager_prompt(playbook):
     create_portfolio_manager(llm)({"company_of_interest": "PETR4", "risk_debate_state": risk,
                                    "investment_plan": "plan", "trader_investment_plan": "trader plan"})
     assert "aporte do mês" in _prompt_text(captured["prompt"])
+
+
+@pytest.mark.unit
+def test_a_mode_section_only_reaches_its_role_when_the_mode_is_on(playbook):
+    _use(playbook)
+    assert "risco sacado" not in get_knowledge_instruction("analistas")
+    _use(playbook, "credito")
+    assert "risco sacado" in get_knowledge_instruction("analistas")
+    assert "risco sacado" not in get_knowledge_instruction("decisao")
