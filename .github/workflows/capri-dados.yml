@@ -1,0 +1,56 @@
+name: Capri dados
+
+# Busca os dados de mercado do painel da carteira (sem IA, cerca de 1 minuto) e grava
+# dados.json no repositório privado <dono>/capri-relatorios, de onde o Claude leva ao painel.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "ETFs e BDRs para cotar no Investidor10, separados por vírgula"
+        required: false
+        default: "IBOB11,LFTB11,SPXU11,BIAU39,SMAL11"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capri-dados
+  cancel-in-progress: true
+
+jobs:
+  dados:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      REPORTS_TOKEN: ${{ secrets.CAPRI_REPORTS_TOKEN }}
+      REPORTS_REPO: ${{ github.repository_owner }}/capri-relatorios
+      IN_TICKERS: ${{ inputs.tickers }}
+      TZ: America/Sao_Paulo
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Instalar
+        run: pip install yfinance requests
+
+      - name: Buscar os dados
+        run: python scripts/capri_dados.py --tickers "$IN_TICKERS" --out "$RUNNER_TEMP/dados.json"
+
+      - name: Guardar em capri-relatorios
+        run: |
+          [ -n "$REPORTS_TOKEN" ] || { echo "::error::Falta o segredo CAPRI_REPORTS_TOKEN."; exit 1; }
+          dest="$RUNNER_TEMP/capri-relatorios"
+          git clone --depth 1 "https://x-access-token:${REPORTS_TOKEN}@github.com/${REPORTS_REPO}.git" "$dest"
+          cp "$RUNNER_TEMP/dados.json" "$dest/dados.json"
+          cd "$dest"
+          git config user.name "capri-bot"
+          git config user.email "capri-bot@users.noreply.github.com"
+          git add dados.json
+          git commit -m "Capri dados: $(date '+%F %H:%M') (execução ${{ github.run_id }})"
+          # a análise da Capri também grava neste repositório: tenta de novo se ela empurrou antes
+          for i in 1 2 3; do git push origin HEAD && exit 0; git pull --rebase origin HEAD; done
+          exit 1
