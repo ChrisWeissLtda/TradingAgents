@@ -1,0 +1,111 @@
+name: Capri
+
+# Roda uma análise da Capri sob demanda (pelo GitHub ou pelo chat com o Claude)
+# e guarda o relatório e a memória de decisões no repositório privado
+# <dono>/capri-relatorios, para que fiquem fora deste repositório público.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Ticker (ex.: PETR4, VALE3, BOVA11, NVDA)"
+        required: true
+      date:
+        description: "Data da análise AAAA-MM-DD (vazio = hoje)"
+        required: false
+        default: ""
+      analysts:
+        description: "Analistas, separados por vírgula"
+        required: false
+        default: "market,sentiment,news,fundamentals"
+
+permissions:
+  contents: read
+
+# Uma análise por vez, para a memória de decisões não ser escrita por duas ao mesmo tempo.
+concurrency:
+  group: capri
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      REPORTS_TOKEN: ${{ secrets.CAPRI_REPORTS_TOKEN }}
+      REPORTS_REPO: ${{ github.repository_owner }}/capri-relatorios
+      TRADINGAGENTS_LLM_PROVIDER: anthropic
+      TRADINGAGENTS_QUICK_THINK_LLM: claude-haiku-4-5
+      TRADINGAGENTS_DEEP_THINK_LLM: claude-sonnet-5
+      TRADINGAGENTS_OUTPUT_LANGUAGE: Portuguese
+      TRADINGAGENTS_MAX_DEBATE_ROUNDS: "1"
+      TRADINGAGENTS_MAX_RISK_ROUNDS: "1"
+      TRADINGAGENTS_NO_UPDATE_CHECK: "1"
+      TRADINGAGENTS_RESULTS_DIR: ${{ github.workspace }}/../capri-run
+      TRADINGAGENTS_MEMORY_LOG_PATH: ${{ github.workspace }}/../capri-relatorios/memoria/trading_memory.md
+      TZ: America/Sao_Paulo
+      # Entradas passadas por variável, nunca interpoladas no script.
+      IN_TICKER: ${{ inputs.ticker }}
+      IN_DATE: ${{ inputs.date }}
+      IN_ANALYSTS: ${{ inputs.analysts }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Instalar
+        run: pip install -e .
+
+      - name: Conferir os segredos
+        run: |
+          missing=0
+          for name in ANTHROPIC_API_KEY REPORTS_TOKEN; do
+            if [ -z "${!name}" ]; then missing=1; fi
+          done
+          [ -n "$ANTHROPIC_API_KEY" ] || echo "::error::Falta o segredo ANTHROPIC_API_KEY em Settings > Secrets and variables > Actions."
+          [ -n "$REPORTS_TOKEN" ] || echo "::error::Falta o segredo CAPRI_REPORTS_TOKEN (token com acesso ao repositório $REPORTS_REPO)."
+          exit $missing
+
+      - name: Abrir o repositório de relatórios
+        run: |
+          dest="$GITHUB_WORKSPACE/../capri-relatorios"
+          url="https://x-access-token:${REPORTS_TOKEN}@github.com/${REPORTS_REPO}.git"
+          git clone --depth 1 "$url" "$dest" || {
+            echo "::error::Não consegui abrir $REPORTS_REPO. Confira se ele existe e se o token tem acesso a ele."
+            exit 1
+          }
+          mkdir -p "$dest/memoria" "$dest/relatorios"
+
+      - name: Rodar a análise
+        run: |
+          date_arg="${IN_DATE:-$(date +%F)}"
+          echo "DATE_ARG=$date_arg" >> "$GITHUB_ENV"
+          tradingagents --ticker "$IN_TICKER" --date "$date_arg" --analysts "$IN_ANALYSTS" \
+            --save --no-show --html < /dev/null
+
+      - name: Guardar o relatório
+        if: success()
+        run: |
+          dest="$GITHUB_WORKSPACE/../capri-relatorios"
+          report=$(ls -dt "$GITHUB_WORKSPACE"/../capri-run/reports/*/ | head -1)
+          name=$(basename "$report")
+          mkdir -p "$dest/relatorios/$name"
+          cp -r "$report"/. "$dest/relatorios/$name/"
+          {
+            echo "# Última análise da Capri"
+            echo
+            echo "- Ticker: $IN_TICKER"
+            echo "- Data: $DATE_ARG"
+            echo "- Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- Pasta: relatorios/$name"
+          } > "$dest/ULTIMA.md"
+          cd "$dest"
+          git config user.name "capri-bot"
+          git config user.email "capri-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Capri: $IN_TICKER em $DATE_ARG (execução ${{ github.run_id }})"
+          git push origin HEAD
+          echo "Relatório salvo em relatorios/$name" >> "$GITHUB_STEP_SUMMARY"
