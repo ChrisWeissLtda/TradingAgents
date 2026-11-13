@@ -33,6 +33,8 @@ jobs:
     timeout-minutes: 60
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Opcional: segunda fonte de preços, indicadores e notícias quando o Yahoo falhar.
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
       REPORTS_TOKEN: ${{ secrets.CAPRI_REPORTS_TOKEN }}
       REPORTS_REPO: ${{ github.repository_owner }}/capri-relatorios
       TRADINGAGENTS_LLM_PROVIDER: anthropic
@@ -83,8 +85,13 @@ jobs:
         run: |
           date_arg="${IN_DATE:-$(date +%F)}"
           echo "DATE_ARG=$date_arg" >> "$GITHUB_ENV"
+          # A carteira fica no repositório privado; sem ela a análise roda sem contexto de posições.
+          book="$GITHUB_WORKSPACE/../capri-relatorios/carteira.json"
+          book_args=()
+          if [ -f "$book" ]; then book_args=(--portfolio "$book"); echo "Usando a carteira de capri-relatorios/carteira.json"; fi
+          [ -n "$ALPHA_VANTAGE_API_KEY" ] || echo "::notice::Sem ALPHA_VANTAGE_API_KEY: só o Yahoo como fonte de preços e notícias."
           tradingagents --ticker "$IN_TICKER" --date "$date_arg" --analysts "$IN_ANALYSTS" \
-            --save --no-show --html < /dev/null
+            "${book_args[@]}" --save --no-show --html < /dev/null
 
       - name: Guardar o relatório
         if: success()

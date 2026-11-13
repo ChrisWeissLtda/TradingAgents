@@ -281,3 +281,11 @@ def test_cli_passes_a_valid_portfolio_into_the_run(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     assert ran[0]["portfolio"].position_in("AAPL").quantity == 120
+
+
+@pytest.mark.unit
+def test_notes_reach_the_rendered_block():
+    book = PortfolioContext.model_validate({"positions": [{"ticker": "IBOB11", "quantity": 10}]} | {"notes": "No selling; long-term BRL portfolio"})
+    block = book.render("PETR4")
+    assert "Caller's notes on this portfolio: No selling; long-term BRL portfolio" in block
+    assert "notes" not in PortfolioContext(positions=[]).render("PETR4").lower()
