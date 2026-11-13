@@ -89,6 +89,9 @@ jobs:
           book="$GITHUB_WORKSPACE/../capri-relatorios/carteira.json"
           book_args=()
           if [ -f "$book" ]; then book_args=(--portfolio "$book"); echo "Usando a carteira de capri-relatorios/carteira.json"; fi
+          # Método e regras fixas para os agentes, também no repositório privado.
+          know="$GITHUB_WORKSPACE/../capri-relatorios/conhecimento.md"
+          if [ -f "$know" ]; then export TRADINGAGENTS_KNOWLEDGE_PATH="$know"; echo "Usando capri-relatorios/conhecimento.md"; fi
           [ -n "$ALPHA_VANTAGE_API_KEY" ] || echo "::notice::Sem ALPHA_VANTAGE_API_KEY: só o Yahoo como fonte de preços e notícias."
           tradingagents --ticker "$IN_TICKER" --date "$date_arg" --analysts "$IN_ANALYSTS" \
             "${book_args[@]}" --save --no-show --html < /dev/null

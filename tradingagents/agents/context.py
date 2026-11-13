@@ -3,12 +3,52 @@
 import functools
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from tradingagents.dataflows.date_window import is_historical
 from tradingagents.dataflows.vendors.yahoo.fundamentals import get_company_profile
 
 logger = logging.getLogger(__name__)
+
+
+def _knowledge_sections(path: str) -> dict[str, str]:
+    """Split a playbook file into its "## <name>" sections, lower-cased by name."""
+    sections: dict[str, list[str]] = {}
+    current = None
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip().lower()
+            sections.setdefault(current, [])
+        elif current is not None:
+            sections[current].append(line)
+    return {name: "\n".join(body).strip() for name, body in sections.items()}
+
+
+def get_knowledge_instruction(role: str) -> str:
+    """The caller's playbook for one agent role, or an empty string.
+
+    ``knowledge_path`` points at a markdown file whose "## todos" section reaches
+    every agent and whose "## analistas", "## pesquisa" and "## decisao" sections
+    reach the analysts, the research team and the decision agents. It carries
+    methods and standing rules, never market data, and says so to the model.
+    """
+    from tradingagents.dataflows.config import get_config
+    path = get_config().get("knowledge_path")
+    if not path:
+        return ""
+    try:
+        sections = _knowledge_sections(str(path))
+    except OSError as exc:
+        logger.warning("Playbook %s not readable: %s; running without it.", path, exc)
+        return ""
+    text = "\n\n".join(t for t in (sections.get("todos", ""), sections.get(role, "")) if t)
+    if not text:
+        return ""
+    return (
+        "\n\nCaller's playbook (methods and standing rules to apply; it holds no "
+        "market data, so never cite a figure from it as current):\n" + text
+    )
 
 
 def get_language_instruction() -> str:
