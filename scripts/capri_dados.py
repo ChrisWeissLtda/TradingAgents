@@ -5,7 +5,11 @@ EWZ, Brent, dólar, ouro, juro de 10 anos dos EUA), TD Monitor (Tesouro Direto),
 painelbancario (curva de DI da ANBIMA) e IBGE/SIDRA (IPCA em 12 meses).
 Uma fonte que falha vira uma entrada em "erros"; as outras seguem.
 """
-import argparse, datetime as dt, json, re, sys
+import argparse
+import datetime as dt
+import json
+import re
+import sys
 
 import requests
 import yfinance as yf
@@ -28,7 +32,10 @@ def serie(sym):
     if h.empty:
         raise ValueError("sem cotações no Yahoo para " + sym)
     px = float(h.iloc[-1])
-    var = lambda n: round((px / float(h.iloc[-1 - n]) - 1) * 100, 2) if len(h) > n else None
+
+    def var(n):
+        return round((px / float(h.iloc[-1 - n]) - 1) * 100, 2) if len(h) > n else None
+
     ano = h[h.index.year < h.index[-1].year]
     return {"price": round(px, 4), "d1": var(1), "d5": var(5), "m1": var(21),
             "ytd": round((px / float(ano.iloc[-1]) - 1) * 100, 2) if len(ano) else None,
@@ -49,7 +56,7 @@ def main():
     ap.add_argument("--tickers", default="IBOB11,LFTB11,SPXU11,BIAU39,SMAL11")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    out = {"at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "mercado": {}, "etfs": {}, "erros": {}}
+    out = {"at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "mercado": {}, "etfs": {}, "erros": {}}
 
     for chave, sym in MERCADO.items():
         try:
