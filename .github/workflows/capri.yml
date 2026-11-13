@@ -1,0 +1,108 @@
+name: Capri
+
+# Roda uma análise da Capri sob demanda (pelo GitHub ou pelo chat com o Claude)
+# e guarda o relatório e a memória de decisões no branch `capri-relatorios`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Ticker (ex.: PETR4, VALE3, BOVA11, NVDA)"
+        required: true
+      date:
+        description: "Data da análise AAAA-MM-DD (vazio = hoje)"
+        required: false
+        default: ""
+      analysts:
+        description: "Analistas, separados por vírgula"
+        required: false
+        default: "market,sentiment,news,fundamentals"
+
+permissions:
+  contents: write
+
+# Uma análise por vez, para a memória de decisões não ser escrita por duas ao mesmo tempo.
+concurrency:
+  group: capri
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      TRADINGAGENTS_LLM_PROVIDER: anthropic
+      TRADINGAGENTS_QUICK_THINK_LLM: claude-haiku-4-5
+      TRADINGAGENTS_DEEP_THINK_LLM: claude-sonnet-5
+      TRADINGAGENTS_OUTPUT_LANGUAGE: Portuguese
+      TRADINGAGENTS_MAX_DEBATE_ROUNDS: "1"
+      TRADINGAGENTS_MAX_RISK_ROUNDS: "1"
+      TRADINGAGENTS_NO_UPDATE_CHECK: "1"
+      TRADINGAGENTS_RESULTS_DIR: ${{ github.workspace }}/../capri-run
+      TRADINGAGENTS_MEMORY_LOG_PATH: ${{ github.workspace }}/../capri-relatorios/memoria/trading_memory.md
+      TZ: America/Sao_Paulo
+      # Entradas passadas por variável, nunca interpoladas no script.
+      IN_TICKER: ${{ inputs.ticker }}
+      IN_DATE: ${{ inputs.date }}
+      IN_ANALYSTS: ${{ inputs.analysts }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Instalar
+        run: pip install -e .
+
+      - name: Conferir a chave
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::Falta o segredo ANTHROPIC_API_KEY em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Abrir o branch de relatórios
+        run: |
+          dest="$GITHUB_WORKSPACE/../capri-relatorios"
+          if git ls-remote --exit-code --heads origin capri-relatorios >/dev/null; then
+            git clone --depth 1 --branch capri-relatorios \
+              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$dest"
+          else
+            git init -b capri-relatorios "$dest"
+            git -C "$dest" remote add origin \
+              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          fi
+          mkdir -p "$dest/memoria" "$dest/relatorios"
+
+      - name: Rodar a análise
+        run: |
+          date_arg="${IN_DATE:-$(date +%F)}"
+          echo "DATE_ARG=$date_arg" >> "$GITHUB_ENV"
+          tradingagents --ticker "$IN_TICKER" --date "$date_arg" --analysts "$IN_ANALYSTS" \
+            --save --no-show --html < /dev/null
+
+      - name: Guardar o relatório
+        if: success()
+        run: |
+          dest="$GITHUB_WORKSPACE/../capri-relatorios"
+          report=$(ls -dt "$GITHUB_WORKSPACE"/../capri-run/reports/*/ | head -1)
+          name=$(basename "$report")
+          mkdir -p "$dest/relatorios/$name"
+          cp -r "$report"/. "$dest/relatorios/$name/"
+          {
+            echo "# Última análise da Capri"
+            echo
+            echo "- Ticker: $IN_TICKER"
+            echo "- Data: $DATE_ARG"
+            echo "- Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- Pasta: relatorios/$name"
+          } > "$dest/ULTIMA.md"
+          cd "$dest"
+          git config user.name "capri-bot"
+          git config user.email "capri-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Capri: $IN_TICKER em $DATE_ARG (execução ${{ github.run_id }})"
+          git push origin capri-relatorios
+          echo "Relatório salvo em relatorios/$name" >> "$GITHUB_STEP_SUMMARY"
