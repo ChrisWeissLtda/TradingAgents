@@ -160,7 +160,7 @@ def build_default_config() -> dict:
             "technical_indicators": "yfinance,alpha_vantage",  # Options: alpha_vantage, yfinance
             # Statements come from SEC EDGAR as filed (US filers), then Yahoo; the
         # overview and insider tools, which SEC EDGAR does not serve, from Yahoo.
-        "fundamental_data": "sec_edgar,yfinance",  # Options: sec_edgar, alpha_vantage, yfinance
+        "fundamental_data": "sec_edgar,yfinance,alpha_vantage",  # Options: sec_edgar, alpha_vantage, yfinance
             "news_data": "yfinance,alpha_vantage",             # Options: alpha_vantage, yfinance
             # BCB serves its Brazil aliases (keyless) and passes anything else to FRED.
             "macro_data": "bcb,fred",            # Options: bcb, fred (needs FRED_API_KEY)
